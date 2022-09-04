@@ -17,6 +17,6 @@ jobs:
       - name: publish
         run: |
           echo ${{ secrets.DOCKER_HUB_PASSWORD }} | docker login -u daniellarsennz --password-stdin
-          docker build . -t "daniellarsennz/healthchecksaspnet:latest" -t "daniellarsennz/healthchecksaspnet:${{ github.sha }}"
+          docker build ./HealthChecksAspNet -t "daniellarsennz/healthchecksaspnet:latest" -t "daniellarsennz/healthchecksaspnet:${{ github.sha }}"
           docker push "daniellarsennz/healthchecksaspnet:latest"
         shell: bash
