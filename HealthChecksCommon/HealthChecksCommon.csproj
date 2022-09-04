@@ -1,0 +1,17 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" Version="2.2.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="6.0.0" />
+	<PackageReference Include="AspNetCore.HealthChecks.AzureServiceBus" Version="6.0.4" />
+	<PackageReference Include="AspNetCore.HealthChecks.CosmosDb" Version="6.1.0" />
+	<PackageReference Include="AspNetcore.HealthChecks.Publisher.ApplicationInsights" Version="6.0.2" />
+	<PackageReference Include="AspNetCore.HealthChecks.Redis" Version="6.0.4" />
+  </ItemGroup>
+
+</Project>

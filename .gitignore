@@ -3,3 +3,5 @@ obj
 appsettings.*.json
 .vs
 *.user
+local.settings.json
+Properties
