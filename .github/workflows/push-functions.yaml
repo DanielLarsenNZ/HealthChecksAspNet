@@ -4,6 +4,8 @@ on:
     branches: [ main ]
     paths:
       - "HealthChecksAzureFunctions"
+      - "HealthChecksCommon"
+      - "HealthChecksAzureFunctions.Dockerfile"
 
   workflow_dispatch:
 
@@ -17,6 +19,6 @@ jobs:
       - name: publish
         run: |
           echo ${{ secrets.DOCKER_HUB_PASSWORD }} | docker login -u daniellarsennz --password-stdin
-          docker build ./HealthChecksAzureFunctions -t "daniellarsennz/healthchecksazurefunctions:latest" -t "daniellarsennz/healthchecksazurefunctions:${{ github.sha }}"
+          docker build . -f HealthChecksAzureFunctions.Dockerfile -t "daniellarsennz/healthchecksazurefunctions:latest" -t "daniellarsennz/healthchecksazurefunctions:${{ github.sha }}" --build-arg "GITHUB_SHA=${{ github.sha }}"
           docker push "daniellarsennz/healthchecksazurefunctions:latest"
         shell: bash

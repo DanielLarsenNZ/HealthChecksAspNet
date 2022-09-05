@@ -4,6 +4,8 @@ on:
     branches: [ main ]
     paths:
       - "HealthChecksAspNet"
+      - "HealthChecksCommon"
+      - "HealthChecksAspNet.Dockerfile"
 
   workflow_dispatch:
 
