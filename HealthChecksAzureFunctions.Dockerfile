@@ -10,7 +10,7 @@ FROM mcr.microsoft.com/dotnet/sdk:6.0 AS build
 COPY --from=runtime3_1 /usr/share/dotnet/host /usr/share/dotnet/host
 COPY --from=runtime3_1 /usr/share/dotnet/shared /usr/share/dotnet/shared
 WORKDIR /src
-COPY ["HealthChecksAzureFunctions.csproj", "."]
+COPY ["HealthChecksAzureFunctions/HealthChecksAzureFunctions.csproj", "."]
 COPY ["HealthChecksAzureFunctions/HealthChecksAzureFunctions.csproj", "HealthChecksAzureFunctions/"]
 COPY ["HealthChecksCommon/HealthChecksCommon.csproj", "HealthChecksCommon/"]
 
