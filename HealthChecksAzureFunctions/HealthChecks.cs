@@ -25,12 +25,19 @@ namespace HealthChecksAzureFunctions
             _logger.LogInformation("C# HTTP trigger function processed a request.");
 
             var healthReport = await _healthChecks.CheckHealthAsync();
-            var response = req.CreateResponse(HttpStatusCode.OK);
+
+            var response = req.CreateResponse(HttpStatusFromHealthCheckStatus(healthReport));
             response.Headers.Add("Content-Type", "text/plain; charset=utf-8");
 
             await response.WriteStringAsync(HealthChecksDotNetResponseWriter.WriteResponseString(healthReport));
 
             return response;
+        }
+
+        private static HttpStatusCode HttpStatusFromHealthCheckStatus(HealthReport healthReport)
+        {
+            if (healthReport.Status == HealthStatus.Healthy) return HttpStatusCode.OK;
+            return HttpStatusCode.ServiceUnavailable;
         }
     }
 }
