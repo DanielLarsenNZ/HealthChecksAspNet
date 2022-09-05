@@ -1,7 +1,5 @@
-﻿using Azure.Core;
-using Azure.Identity;
+﻿using Azure.Identity;
 using Azure.Storage.Blobs;
-using HealthChecks.AzureKeyVault;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -9,7 +7,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
-using System.Security.Policy;
 using static HealthChecksCommon.Constants;
 
 namespace HealthChecksCommon
@@ -38,9 +35,9 @@ namespace HealthChecksCommon
             {
                 services.AddHealthChecks()
                     .AddAzureServiceBusQueue(
-                    config[AzureServiceBusConnectionString], 
-                    config[AzureServiceBusQueueName], 
-                    timeout: timeout, 
+                    config[AzureServiceBusConnectionString],
+                    config[AzureServiceBusQueueName],
+                    timeout: timeout,
                     tags: new[] { "services", "azure-service-bus" });
             }
 
@@ -49,9 +46,9 @@ namespace HealthChecksCommon
             {
                 services.AddHealthChecks()
                     .AddCosmosDb(
-                    config[AzureCosmosDbConnectionString], 
-                    database: config[AzureCosmosDbDatabaseName], 
-                    timeout: timeout, 
+                    config[AzureCosmosDbConnectionString],
+                    database: config[AzureCosmosDbDatabaseName],
+                    timeout: timeout,
                     tags: new[] { "services", "azure-cosmosdb" });
             }
 
@@ -61,7 +58,7 @@ namespace HealthChecksCommon
                 if (Uri.IsWellFormedUriString(config[AzureKeyVaultUri], UriKind.Absolute))
                 {
                     services.AddHealthChecks()
-                        .AddAzureKeyVault(new Uri(config[AzureKeyVaultUri]), new DefaultAzureCredential(), (options) => { }, timeout:timeout);
+                        .AddAzureKeyVault(new Uri(config[AzureKeyVaultUri]), new DefaultAzureCredential(), (options) => { }, timeout: timeout);
                 }
                 //TODO: log malformed URI string
             }
@@ -69,11 +66,11 @@ namespace HealthChecksCommon
             // AZURE STORAGE
             if (!string.IsNullOrWhiteSpace(config[AzureStorageConnectionString]) && !string.IsNullOrWhiteSpace(config[AzureStorageContainerName]))
             {
-                services.AddSingleton((services) 
+                services.AddSingleton((services)
                     => new BlobServiceClient(config[AzureStorageConnectionString]));
 
-                services.AddHealthChecks().AddAzureBlobStorage((options)=> options.ContainerName = "data", timeout: timeout);
-                    
+                services.AddHealthChecks().AddAzureBlobStorage((options) => options.ContainerName = "data", timeout: timeout);
+
             }
 
             // SQL SERVER

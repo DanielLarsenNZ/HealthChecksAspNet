@@ -3,8 +3,8 @@ on:
   push:
     branches: [ main ]
     paths:
-      - "HealthChecksAzureFunctions"
-      - "HealthChecksCommon"
+      - "HealthChecksAzureFunctions/**"
+      - "HealthChecksCommon/**"
       - "HealthChecksAzureFunctions.Dockerfile"
 
   workflow_dispatch:

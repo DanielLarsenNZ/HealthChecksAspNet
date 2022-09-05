@@ -3,8 +3,8 @@ on:
   push:
     branches: [ main ]
     paths:
-      - "HealthChecksAspNet"
-      - "HealthChecksCommon"
+      - "HealthChecksAspNet/**"
+      - "HealthChecksCommon/**"
       - "HealthChecksAspNet.Dockerfile"
 
   workflow_dispatch:
