@@ -26,58 +26,120 @@ namespace HealthChecksCommon
             // REDIS
             if (!string.IsNullOrWhiteSpace(config[RedisConnectionString]))
             {
-                services.AddHealthChecks()
-                    .AddRedis(config[RedisConnectionString], tags: new[] { "services", "redis" }, timeout: timeout);
+                try
+                {
+                    services.AddHealthChecks()
+                        .AddRedis(config[RedisConnectionString], name: "Redis", tags: new[] { "services", "redis" }, timeout: timeout);
+                }
+                catch (Exception ex)
+                {
+                    services.AddHealthChecks().AddCheck("Redis", () => HealthCheckResult.Unhealthy(exception: ex));
+                }
             }
 
             // AZURE SERVICE BUS
-            if (!string.IsNullOrWhiteSpace(config[AzureServiceBusConnectionString]) && !string.IsNullOrWhiteSpace(config[AzureServiceBusQueueName]))
+            if (!string.IsNullOrWhiteSpace(config[AzureServiceBusFQNamespace]) && !string.IsNullOrWhiteSpace(config[AzureServiceBusQueueName]))
             {
-                services.AddHealthChecks()
-                    .AddAzureServiceBusQueue(
-                    config[AzureServiceBusConnectionString],
-                    config[AzureServiceBusQueueName],
-                    timeout: timeout,
-                    tags: new[] { "services", "azure-service-bus" });
+                try
+                {
+                    services.AddHealthChecks()
+                        .AddAzureServiceBusQueue(
+                            config[AzureServiceBusFQNamespace],
+                            config[AzureServiceBusQueueName],
+                            new DefaultAzureCredential(),
+                            name: "Azure Service Bus",
+                            timeout: timeout,
+                            tags: new[] { "services", "azure-service-bus" });
+                }
+                catch (Exception ex)
+                {
+                    services.AddHealthChecks().AddCheck("Azure Service Bus", () => HealthCheckResult.Unhealthy(exception: ex));
+                }
             }
 
             // AZURE COSMOS DB
-            if (!string.IsNullOrWhiteSpace(config[AzureCosmosDbConnectionString]) && !string.IsNullOrWhiteSpace(config[AzureCosmosDbDatabaseName]))
+            if (!string.IsNullOrWhiteSpace(config[AzureCosmosDbEndpointUri]) && !string.IsNullOrWhiteSpace(config[AzureCosmosDbDatabaseName]))
             {
-                services.AddHealthChecks()
-                    .AddCosmosDb(
-                    config[AzureCosmosDbConnectionString],
-                    database: config[AzureCosmosDbDatabaseName],
-                    timeout: timeout,
-                    tags: new[] { "services", "azure-cosmosdb" });
+                try
+                {
+                    if (Uri.IsWellFormedUriString(config[AzureCosmosDbEndpointUri], UriKind.Absolute))
+                    {
+                        services.AddHealthChecks()
+                        .AddCosmosDb(
+                        config[AzureCosmosDbEndpointUri],
+                        new DefaultAzureCredential(),
+                        name: "Azure Cosmos DB",
+                        database: config[AzureCosmosDbDatabaseName],
+                        timeout: timeout,
+                        tags: new[] { "services", "azure-cosmosdb" });
+                    }
+                    //TODO: Log malformed URI
+                }
+                catch (Exception ex)
+                {
+                    services.AddHealthChecks().AddCheck("Azure Cosmos DB", () => HealthCheckResult.Unhealthy(exception: ex));
+                }
             }
 
             // AZURE KEY VAULT
             if (!string.IsNullOrWhiteSpace(config[AzureKeyVaultUri]))
             {
-                if (Uri.IsWellFormedUriString(config[AzureKeyVaultUri], UriKind.Absolute))
+                try
                 {
-                    services.AddHealthChecks()
-                        .AddAzureKeyVault(new Uri(config[AzureKeyVaultUri]), new DefaultAzureCredential(), (options) => { }, timeout: timeout);
+                    if (Uri.IsWellFormedUriString(config[AzureKeyVaultUri], UriKind.Absolute))
+                    {
+                        services.AddHealthChecks()
+                            .AddAzureKeyVault(
+                            new Uri(config[AzureKeyVaultUri]),
+                            new DefaultAzureCredential(),
+                            (options) => { },
+                            name: "Azure Key Vault",
+                            timeout: timeout);
+                    }
                 }
-                //TODO: log malformed URI string
+                catch (Exception ex)
+                {
+                    services.AddHealthChecks().AddCheck("Azure Key Vault", () => HealthCheckResult.Unhealthy(exception: ex));
+                }
             }
 
             // AZURE STORAGE
-            if (!string.IsNullOrWhiteSpace(config[AzureStorageConnectionString]) && !string.IsNullOrWhiteSpace(config[AzureStorageContainerName]))
+            if (!string.IsNullOrWhiteSpace(config[AzureStorageBlobEndpointUri]) && !string.IsNullOrWhiteSpace(config[AzureStorageContainerName]))
             {
-                services.AddSingleton((services)
-                    => new BlobServiceClient(config[AzureStorageConnectionString]));
-
-                services.AddHealthChecks().AddAzureBlobStorage((options) => options.ContainerName = "data", timeout: timeout);
-
+                try
+                {
+                    if (Uri.IsWellFormedUriString(config[AzureStorageBlobEndpointUri], UriKind.Absolute))
+                    {
+                        services.AddSingleton((services) => new BlobServiceClient(new Uri(config[AzureStorageBlobEndpointUri]), new DefaultAzureCredential()));
+                        services.AddHealthChecks()
+                            .AddAzureBlobStorage(
+                            (options) => options.ContainerName = config[AzureStorageContainerName],
+                            name: "Azure Blob Storage",
+                            timeout: timeout);
+                    }
+                    //TODO: Log malformed URI string
+                }
+                catch (Exception ex)
+                {
+                    services.AddHealthChecks().AddCheck("Azure Blob Storage", () => HealthCheckResult.Unhealthy(exception: ex));
+                }
             }
 
             // SQL SERVER
             if (!string.IsNullOrWhiteSpace(config[SqlServerConnectionString]))
             {
-                services.AddHealthChecks()
-                    .AddSqlServer(config[SqlServerConnectionString], timeout: timeout);
+                try
+                {
+                    services.AddHealthChecks()
+                        .AddSqlServer(
+                        config[SqlServerConnectionString],
+                        name: "SQL Server",
+                        timeout: timeout);
+                }
+                catch (Exception ex)
+                {
+                    services.AddHealthChecks().AddCheck("SQL Server", () => HealthCheckResult.Unhealthy(exception: ex));
+                }
             }
 
             // HTTPS ENDPOINTS

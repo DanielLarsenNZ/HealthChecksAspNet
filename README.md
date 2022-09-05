@@ -16,6 +16,11 @@ Deploy container to a Linux Azure Function App:
 az functionapp config container set -n myFunctionApp -g myResourceGroup -i daniellarsennz/healthchecksazurefunctions 
 ```
 
+## Health Checks ASP.NET
+
+The Health Checks ASP.NET container provides three endpoints:
+
+
 ## Configuration
 
 Health Checks .NET will report detailed failure status reports to Application Insights. The Instrumentation Key must be configured:

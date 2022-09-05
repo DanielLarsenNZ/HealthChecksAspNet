@@ -3,12 +3,12 @@
     public static class Constants
     {
         public const string RedisConnectionString = "REDIS_CONNECTION_STRING";
-        public const string AzureServiceBusConnectionString = "AZURE_SERVICE_BUS_CONNECTION_STRING";
+        public const string AzureServiceBusFQNamespace = "AZURE_SERVICE_BUS_FQ_NAMESPACE";
         public const string AzureServiceBusQueueName = "AZURE_SERVICE_BUS_QUEUE_NAME";
-        public const string AzureCosmosDbConnectionString = "AZURE_COSMOSDB_CONNECTION_STRING";
+        public const string AzureCosmosDbEndpointUri = "AZURE_COSMOSDB_ENDPOINT_URI";
         public const string AzureCosmosDbDatabaseName = "AZURE_COSMOSDB_DATABASE_NAME";
         public const string AzureKeyVaultUri = "AZURE_KEYVAULT_URI";
-        public const string AzureStorageConnectionString = "AZURE_STORAGE_CONNECTION_STRING";
+        public const string AzureStorageBlobEndpointUri = "AZURE_STORAGE_BLOB_ENDPOINT_URI";
         public const string AzureStorageContainerName = "AZURE_STORAGE_CONTAINER_NAME";
         public const string SqlServerConnectionString = "SQL_SERVER_CONNECTION_STRING";
 

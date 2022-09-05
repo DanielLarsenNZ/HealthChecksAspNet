@@ -43,7 +43,7 @@ namespace HealthChecksCommon
                 foreach (var entry in healthReport.Entries)
                 {
                     writer.WriteLine();
-                    writer.Write(entry.Key.ToUpper() + '\t');
+                    writer.Write(entry.Key + '\t');
                     writer.Write(entry.Value.Status.ToString().ToUpper() + '\t');
                     writer.Write(entry.Value.Description + '\n');
 
