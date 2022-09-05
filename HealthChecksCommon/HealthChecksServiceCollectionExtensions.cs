@@ -25,16 +25,24 @@ namespace HealthChecksCommon
                     .AddRedis(config[RedisConnectionString], tags: new[] { "services", "redis" }, timeout: TimeSpan.FromSeconds(DefaultTimeoutSeconds));
             }
 
-            if (!string.IsNullOrWhiteSpace(config[AzureServiceBusConnectionString]))
+            if (!string.IsNullOrWhiteSpace(config[AzureServiceBusConnectionString]) && !string.IsNullOrWhiteSpace(config[AzureServiceBusQueueName]))
             {
                 services.AddHealthChecks()
-                    .AddAzureServiceBusQueue(config[AzureServiceBusConnectionString], config[AzureServiceBusQueueName], timeout: TimeSpan.FromSeconds(DefaultTimeoutSeconds), tags: new[] { "services", "azure-service-bus" });
+                    .AddAzureServiceBusQueue(
+                    config[AzureServiceBusConnectionString], 
+                    config[AzureServiceBusQueueName], 
+                    timeout: TimeSpan.FromSeconds(DefaultTimeoutSeconds), 
+                    tags: new[] { "services", "azure-service-bus" });
             }
 
-            if (!string.IsNullOrWhiteSpace(config[AzureCosmosDbConnectionString]))
+            if (!string.IsNullOrWhiteSpace(config[AzureCosmosDbConnectionString]) && !string.IsNullOrWhiteSpace(config[AzureCosmosDbDatabaseName]))
             {
                 services.AddHealthChecks()
-                    .AddCosmosDb(config[AzureCosmosDbConnectionString], database: config[AzureCosmosDbDatabaseName], timeout: TimeSpan.FromSeconds(DefaultTimeoutSeconds), tags: new[] { "services", "azure-cosmosdb" });
+                    .AddCosmosDb(
+                    config[AzureCosmosDbConnectionString], 
+                    database: config[AzureCosmosDbDatabaseName], 
+                    timeout: TimeSpan.FromSeconds(DefaultTimeoutSeconds), 
+                    tags: new[] { "services", "azure-cosmosdb" });
             }
 
             if (!string.IsNullOrEmpty(config[HttpsEndpointUrls]))

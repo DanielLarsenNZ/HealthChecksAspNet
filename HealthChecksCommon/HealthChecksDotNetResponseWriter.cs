@@ -36,8 +36,9 @@ namespace HealthChecksCommon
                 writer.WriteLine($"UtcNow:\t\t\t{DateTime.UtcNow}");
                 writer.WriteLine($"WEBSITE_INSTANCE_ID:\t{Environment.GetEnvironmentVariables()["WEBSITE_INSTANCE_ID"]}");
                 writer.WriteLine($"COMPUTERNAME:\t\t{Environment.GetEnvironmentVariables()["COMPUTERNAME"]}");
-                writer.WriteLine($"HOSTNAME:\t\t{Environment.GetEnvironmentVariables()["HOSTNAME"]}\n");
-                writer.WriteLine($"WEBSITE_PRIVATE_IP:\t{Environment.GetEnvironmentVariables()["WEBSITE_PRIVATE_IP"]}\n");
+                writer.WriteLine($"HOSTNAME:\t\t{Environment.GetEnvironmentVariables()["HOSTNAME"]}");
+                writer.WriteLine($"WEBSITE_PRIVATE_IP:\t{Environment.GetEnvironmentVariables()["WEBSITE_PRIVATE_IP"]}");
+                writer.WriteLine($"GITHUB_SHA:\t\t{Environment.GetEnvironmentVariables()["GITHUB_SHA"]}");
 
                 foreach (var entry in healthReport.Entries)
                 {

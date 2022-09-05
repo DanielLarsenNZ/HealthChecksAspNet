@@ -19,5 +19,8 @@ RUN dotnet publish "./HealthChecksAspNet/HealthChecksAspNet.csproj" -c Release -
 
 FROM base AS final
 WORKDIR /app
+ARG GITHUB_SHA
+LABEL GITHUB_SHA=${GITHUB_SHA}
+ENV GITHUB_SHA=${GITHUB_SHA}
 COPY --from=publish /app/publish .
 ENTRYPOINT ["dotnet", "HealthChecksAspNet.dll"]
