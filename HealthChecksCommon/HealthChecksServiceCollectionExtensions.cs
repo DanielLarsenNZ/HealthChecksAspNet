@@ -1,10 +1,15 @@
-﻿using Microsoft.Extensions.Configuration;
+﻿using Azure.Core;
+using Azure.Identity;
+using Azure.Storage.Blobs;
+using HealthChecks.AzureKeyVault;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
+using System.Security.Policy;
 using static HealthChecksCommon.Constants;
 
 namespace HealthChecksCommon
@@ -14,37 +19,71 @@ namespace HealthChecksCommon
         public static IServiceCollection AddHealthChecksDotNet(
             this IServiceCollection services, IConfiguration config)
         {
-            // Add healthcheck here
+            //TODO: Configurable timeout/s
+            var timeout = TimeSpan.FromSeconds(DefaultTimeoutSeconds);
+
             services.AddHealthChecks()
                 .AddCheck("self", () => HealthCheckResult.Healthy())
                 .AddApplicationInsightsPublisher(instrumentationKey: config["APPINSIGHTS_INSTRUMENTATIONKEY"], saveDetailedReport: true, excludeHealthyReports: true);
 
+            // REDIS
             if (!string.IsNullOrWhiteSpace(config[RedisConnectionString]))
             {
                 services.AddHealthChecks()
-                    .AddRedis(config[RedisConnectionString], tags: new[] { "services", "redis" }, timeout: TimeSpan.FromSeconds(DefaultTimeoutSeconds));
+                    .AddRedis(config[RedisConnectionString], tags: new[] { "services", "redis" }, timeout: timeout);
             }
 
+            // AZURE SERVICE BUS
             if (!string.IsNullOrWhiteSpace(config[AzureServiceBusConnectionString]) && !string.IsNullOrWhiteSpace(config[AzureServiceBusQueueName]))
             {
                 services.AddHealthChecks()
                     .AddAzureServiceBusQueue(
                     config[AzureServiceBusConnectionString], 
                     config[AzureServiceBusQueueName], 
-                    timeout: TimeSpan.FromSeconds(DefaultTimeoutSeconds), 
+                    timeout: timeout, 
                     tags: new[] { "services", "azure-service-bus" });
             }
 
+            // AZURE COSMOS DB
             if (!string.IsNullOrWhiteSpace(config[AzureCosmosDbConnectionString]) && !string.IsNullOrWhiteSpace(config[AzureCosmosDbDatabaseName]))
             {
                 services.AddHealthChecks()
                     .AddCosmosDb(
                     config[AzureCosmosDbConnectionString], 
                     database: config[AzureCosmosDbDatabaseName], 
-                    timeout: TimeSpan.FromSeconds(DefaultTimeoutSeconds), 
+                    timeout: timeout, 
                     tags: new[] { "services", "azure-cosmosdb" });
             }
 
+            // AZURE KEY VAULT
+            if (!string.IsNullOrWhiteSpace(config[AzureKeyVaultUri]))
+            {
+                if (Uri.IsWellFormedUriString(config[AzureKeyVaultUri], UriKind.Absolute))
+                {
+                    services.AddHealthChecks()
+                        .AddAzureKeyVault(new Uri(config[AzureKeyVaultUri]), new DefaultAzureCredential(), (options) => { }, timeout:timeout);
+                }
+                //TODO: log malformed URI string
+            }
+
+            // AZURE STORAGE
+            if (!string.IsNullOrWhiteSpace(config[AzureStorageConnectionString]) && !string.IsNullOrWhiteSpace(config[AzureStorageContainerName]))
+            {
+                services.AddSingleton((services) 
+                    => new BlobServiceClient(config[AzureStorageConnectionString]));
+
+                services.AddHealthChecks().AddAzureBlobStorage((options)=> options.ContainerName = "data", timeout: timeout);
+                    
+            }
+
+            // SQL SERVER
+            if (!string.IsNullOrWhiteSpace(config[SqlServerConnectionString]))
+            {
+                services.AddHealthChecks()
+                    .AddSqlServer(config[SqlServerConnectionString], timeout: timeout);
+            }
+
+            // HTTPS ENDPOINTS
             if (!string.IsNullOrEmpty(config[HttpsEndpointUrls]))
             {
                 string urls = config[HttpsEndpointUrls];
@@ -76,7 +115,7 @@ namespace HealthChecksCommon
                                 return HealthCheckResult.Unhealthy(exception: ex, data: data);
                             }
                     },
-                    tags: new[] { "endpoints" }, timeout: TimeSpan.FromSeconds(DefaultTimeoutSeconds));
+                    tags: new[] { "endpoints" }, timeout: timeout);
                 }
             }
             return services;
