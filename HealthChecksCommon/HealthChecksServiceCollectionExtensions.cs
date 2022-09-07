@@ -7,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
+using System.Threading;
 using static HealthChecksCommon.Constants;
 
 namespace HealthChecksCommon
@@ -166,6 +167,7 @@ namespace HealthChecksCommon
                         using (var http = new HttpClient())
                             try
                             {
+                                http.Timeout = timeout;
                                 await http.GetAsync(uri);
                                 return HealthCheckResult.Healthy(data: data);
                             }
