@@ -165,16 +165,20 @@ namespace HealthChecksCommon
                                     });
 
                         using (var http = new HttpClient())
+                        {
                             try
                             {
-                                http.Timeout = timeout;
-                                await http.GetAsync(uri);
+                                http.Timeout = TimeSpan.FromSeconds(10);
+                                http.DefaultRequestHeaders.ConnectionClose = true;
+                                var result = await http.GetAsync(uri);
+                                result.EnsureSuccessStatusCode();
                                 return HealthCheckResult.Healthy(data: data);
                             }
                             catch (Exception ex)
                             {
                                 return HealthCheckResult.Unhealthy(exception: ex, data: data);
                             }
+                        }
                     },
                     tags: new[] { "endpoints" }, timeout: timeout);
                 }
