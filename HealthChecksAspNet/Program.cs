@@ -1,5 +1,7 @@
+using HealthChecksAspNet;
 using HealthChecksCommon;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using System.Net;
 using System.Text;
 using static HealthChecksCommon.Constants;
 
@@ -30,6 +32,12 @@ app.MapGet("/hello", () =>
     return "hello";
 });
 
+app.MapGet("/503", () =>
+{
+    return Results.StatusCode((int)HttpStatusCode.ServiceUnavailable);
+});
+
+
 app.MapGet("/echo", async (string url) =>
 {
     Uri uri;
@@ -52,10 +60,8 @@ app.MapGet("/echo", async (string url) =>
     {
         var response = await http.GetAsync(uri);
 
-        return Results.Content(
-            $"RESPONSE STATUS {response.StatusCode}\n\n{await response.Content.ReadAsStringAsync()}",
-            contentType: "text/plain",
-            contentEncoding: Encoding.UTF8);
+        return Results.Extensions.StatusCodeText(response.StatusCode,
+            $"RESPONSE STATUS {response.StatusCode}\n\n{await response.Content.ReadAsStringAsync()}");
     }
 });
 
