@@ -105,7 +105,7 @@ namespace HealthChecksCommon
             }
 
             // AZURE STORAGE
-            if (!string.IsNullOrWhiteSpace(config[AzureStorageBlobEndpointUri]) && !string.IsNullOrWhiteSpace(config[AzureStorageContainerName]))
+            if (!string.IsNullOrWhiteSpace(config[AzureStorageBlobEndpointUri]))
             {
                 try
                 {
