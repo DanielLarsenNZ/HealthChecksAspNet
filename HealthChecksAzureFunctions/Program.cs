@@ -30,7 +30,7 @@ internal class Program
                         // AZURE SERVICE BUS
                         if (!string.IsNullOrWhiteSpace(config[AzureServiceBusConnectionString]))
                         {
-                            builder.AddServiceBusClient(config[AzureServiceBusConnectionString]);
+                            builder.AddServiceBusAdministrationClient(config[AzureServiceBusConnectionString]);
                         }
 
                         // AZURE STORAGE

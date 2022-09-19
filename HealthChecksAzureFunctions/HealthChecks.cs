@@ -1,4 +1,4 @@
-using Azure.Messaging.ServiceBus;
+using Azure.Messaging.ServiceBus.Administration;
 using Azure.Security.KeyVault.Secrets;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
@@ -48,15 +48,105 @@ namespace HealthChecksAzureFunctions
 
             try
             {
+                var tasks = new List<Task>();
+                tasks.Add(HealthCheck<BlobServiceClient>(healthReportEntries, async (service, cancellationToken) =>
+                {
+                    // Call the listing operation and enumerate the result segment.
+                    var resultSegment = service.GetBlobContainersAsync(
+                        BlobContainerTraits.Metadata,
+                        prefix: _config[AzureStorageContainerName],
+                        cancellationToken: cancellationToken)
+                        .AsPages();
+
+                    await foreach (Azure.Page<BlobContainerItem> containerPage in resultSegment)
+                    {
+                        foreach (BlobContainerItem containerItem in containerPage.Values)
+                        {
+                            if (string.IsNullOrEmpty(_config[AzureStorageContainerName]))
+                            {
+                                return Healthy($"List containers succeeded. No container name specified by app setting \"{AzureStorageContainerName}\".", startTime);
+                            }
+
+                            if (containerItem.Name == _config[AzureStorageContainerName])
+                            {
+                                return Healthy($"List containers succeeded. Container \"{_config[AzureStorageContainerName]}\" exists.", startTime);
+                            }
+                        }
+                    }
+
+                    // Container not found
+                    return Unhealthy($"List containers succeeded, but container \"{_config[AzureStorageContainerName]}\" not found.", startTime);
+                }));
+
+
+                tasks.Add(HealthCheck<ServiceBusAdministrationClient>(healthReportEntries, async (service, cancellationToken) =>
+                {
+                    if (string.IsNullOrEmpty(_config[AzureServiceBusQueueName]))
+                    {
+                        // No queue to check. Just get all queues
+                        var queues = service.GetQueuesAsync(cancellationToken);
+
+                        await foreach (var queue in queues)
+                        {
+                            _logger.LogTrace($"First queue found {queue.Name}");
+                            break;
+                        }
+
+                        return Healthy($"Get Queues succeeded. No queue name specified by app setting \"{AzureServiceBusQueueName}\".", startTime);
+                    }
+                    else
+                    {
+                        var queue = await service.GetQueueAsync(_config[AzureServiceBusQueueName], cancellationToken);
+
+                        if (queue.Value is null)
+                        {
+                            return Unhealthy($"Queue \"{_config[AzureStorageContainerName]}\" not found.", startTime);
+                        }
+                        else
+                        {
+                            return Healthy($"Queue \"{_config[AzureStorageContainerName]}\" exists.", startTime);
+                        }
+                    }
+                }));
+
+                tasks.Add(HealthCheck<SecretClient>(healthReportEntries, async (service, cancellationToken) =>
+                {
+                    var properties = service.GetPropertiesOfSecretsAsync(cancellationToken);
+
+                    await foreach (var property in properties)
+                    {
+                        _logger.LogTrace($"First property found {property.Name}");
+                        break;
+                    }
+
+                    return Healthy("List secrets succeeded", startTime);
+                }));
+
+                tasks.Add(HealthCheck<SqlConnection>(healthReportEntries, async (service, cancellationToken) =>
+                {
+                    service.Open();
+
+                    string sql = "SELECT @@VERSION";
+
+                    using (SqlCommand command = new SqlCommand(sql, service))
+                    {
+                        using (SqlDataReader reader = await command.ExecuteReaderAsync())
+                        {
+                            while (reader.Read())
+                            {
+                                _logger.LogTrace("{0} {1}", reader.GetString(0), reader.GetString(1));
+                                break;
+                            }
+                        }
+
+                        return Healthy("SELECT @@VERSION succeeded", startTime);
+                    }
+                }));
+
+
                 var tokenSource = new CancellationTokenSource();
                 tokenSource.CancelAfter(DefaultTimeoutMilliseconds * 2);
                 var cancellationToken = tokenSource.Token;
-
-                var tasks = new List<Task>();
-                tasks.Add(HealthCheckAzureBlobStorage(healthReportEntries));
-                //tasks.Add(HealthCheckAzureServiceBus(_logger, _config, cancellationToken, healthReportEntries, _serviceBusClient));
-                //tasks.Add(HealthCheckSqlDb(_logger, _config, cancellationToken, healthReportEntries, _sqlConnection));
-                //tasks.Add(HealthCheckAzureKeyVault(_logger, _config, cancellationToken, healthReportEntries, _secretClient));
 
                 bool allCompleted = Task.WaitAll(tasks.ToArray(), DefaultTimeoutMilliseconds, cancellationToken);
 
@@ -82,64 +172,27 @@ namespace HealthChecksAzureFunctions
             return response;
         }
 
-        private Task HealthCheckAzureKeyVault(ILogger logger, IConfiguration config, CancellationToken cancellationToken, ConcurrentDictionary<string, HealthReportEntry> healthReportEntries, SecretClient secretClient)
+        private async Task HealthCheck<T>(ConcurrentDictionary<string, HealthReportEntry> healthReportEntries, Func<T, CancellationToken, Task<HealthReportEntry>> healthcheckLogic)
         {
-            throw new NotImplementedException();
-        }
-
-        private Task HealthCheckSqlDb(ILogger logger, IConfiguration config, CancellationToken cancellationToken, ConcurrentDictionary<string, HealthReportEntry> healthReportEntries, SqlConnection sqlConnection)
-        {
-            throw new NotImplementedException();
-        }
-
-        private Task HealthCheckAzureServiceBus(ILogger logger, IConfiguration config, CancellationToken cancellationToken, ConcurrentDictionary<string, HealthReportEntry> healthReportEntries, ServiceBusClient serviceBusClient)
-        {
-            throw new NotImplementedException();
-        }
-
-        private async Task HealthCheckAzureBlobStorage(ConcurrentDictionary<string, HealthReportEntry> healthReportEntries)
-        {
-            var blobServiceClient = _services.GetService<BlobServiceClient>();
+            var service = _services.GetService<T>();
 
             // Don't run the health check if the service has not been configured.
-            if (blobServiceClient == null) return;
+            if (service == null)
+            {
+                _logger.LogInformation($"{typeof(T).FullName} not found in Service Provider.");
+                return;
+            }
 
-            const string key = "Azure Blob Storage";
+            string key = typeof(T).Name;
             DateTimeOffset startTime = DateTimeOffset.Now;
+            var tokenSource = new CancellationTokenSource();
+            tokenSource.CancelAfter(DefaultTimeoutMilliseconds);
 
             try
             {
-                var tokenSource = new CancellationTokenSource();
-                tokenSource.CancelAfter(DefaultTimeoutMilliseconds);
-
-                // Call the listing operation and enumerate the result segment.
-                var resultSegment = blobServiceClient.GetBlobContainersAsync(
-                    BlobContainerTraits.Metadata,
-                    prefix: _config[AzureStorageContainerName],
-                    cancellationToken: tokenSource.Token)
-                    .AsPages();
-
-                await foreach (Azure.Page<BlobContainerItem> containerPage in resultSegment)
-                {
-                    foreach (BlobContainerItem containerItem in containerPage.Values)
-                    {
-                        if (string.IsNullOrEmpty(_config[AzureStorageContainerName]))
-                        {
-                            AddHealthy(healthReportEntries, key, $"List containers succeeded. No container name specified by app setting \"{AzureStorageContainerName}\".", startTime);
-                            return;
-                        }
-
-                        if (containerItem.Name == _config[AzureStorageContainerName])
-                        {
-                            AddHealthy(healthReportEntries, key, $"List containers succeeded. Container \"{_config[AzureStorageContainerName]}\" exists.", startTime);
-                            return;
-                        }
-                    }
-                }
-
-                // Container not found
-                AddUnhealthy(healthReportEntries, key, $"List containers succeeded, but container \"{_config[AzureStorageContainerName]}\" not found.", startTime);
-                return;
+                var healthReportEntry = await healthcheckLogic(service, tokenSource.Token);
+                if (!healthReportEntries.TryAdd(key, healthReportEntry))
+                    throw new InvalidOperationException();
             }
             catch (TaskCanceledException ex)
             {
@@ -156,16 +209,25 @@ namespace HealthChecksAzureFunctions
 
         private static TimeSpan Elapsed(DateTimeOffset startTime) => DateTimeOffset.Now.Subtract(startTime);
 
-        private static void AddHealthy(ConcurrentDictionary<string, HealthReportEntry> healthReportEntries, string key, string description, DateTimeOffset startTime)
-        {
-            if (!healthReportEntries.TryAdd(
-                key,
+        private static HealthReportEntry Healthy(string description, DateTimeOffset startTime) =>
                 new HealthReportEntry(
                     HealthStatus.Healthy,
                     description,
                     Elapsed(startTime),
                     null,
-                    null)))
+                    null);
+
+        private static HealthReportEntry Unhealthy(string description, DateTimeOffset startTime) =>
+        new HealthReportEntry(
+            HealthStatus.Unhealthy,
+            description,
+            Elapsed(startTime),
+            null,
+            null);
+
+        private static void AddHealthy(ConcurrentDictionary<string, HealthReportEntry> healthReportEntries, string key, string description, DateTimeOffset startTime)
+        {
+            if (!healthReportEntries.TryAdd(key, Healthy(description, startTime)))
             {
                 throw new InvalidOperationException();
             }
@@ -173,14 +235,7 @@ namespace HealthChecksAzureFunctions
 
         private static void AddUnhealthy(ConcurrentDictionary<string, HealthReportEntry> healthReportEntries, string key, string description, DateTimeOffset startTime)
         {
-            if (!healthReportEntries.TryAdd(
-                key,
-                new HealthReportEntry(
-                    HealthStatus.Unhealthy,
-                    description,
-                    Elapsed(startTime),
-                    null,
-                    null)))
+            if (!healthReportEntries.TryAdd(key, Unhealthy(description, startTime)))
             {
                 throw new InvalidOperationException();
             }
