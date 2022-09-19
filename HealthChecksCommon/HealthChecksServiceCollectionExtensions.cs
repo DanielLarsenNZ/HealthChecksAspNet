@@ -39,13 +39,13 @@ namespace HealthChecksCommon
             }
 
             // AZURE SERVICE BUS
-            if (!string.IsNullOrWhiteSpace(config[AzureServiceBusFQNamespace]) && !string.IsNullOrWhiteSpace(config[AzureServiceBusQueueName]))
+            if (!string.IsNullOrWhiteSpace(config[AzureServiceBusConnectionString]) && !string.IsNullOrWhiteSpace(config[AzureServiceBusQueueName]))
             {
                 try
                 {
                     services.AddHealthChecks()
                         .AddAzureServiceBusQueue(
-                            config[AzureServiceBusFQNamespace],
+                            config[AzureServiceBusConnectionString],
                             config[AzureServiceBusQueueName],
                             new DefaultAzureCredential(),
                             name: "Azure Service Bus",
