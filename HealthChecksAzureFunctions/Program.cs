@@ -1,4 +1,5 @@
 using Azure.Identity;
+using Azure.Messaging.ServiceBus.Administration;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Azure;
 using Microsoft.Extensions.Configuration;
@@ -27,7 +28,7 @@ internal class Program
                     {
                         builder.UseCredential(new DefaultAzureCredential());
 
-                        // AZURE SERVICE BUS
+                        // AZURE SERVICE BUS - Connection String
                         if (!string.IsNullOrWhiteSpace(config[AzureServiceBusConnectionString]))
                         {
                             builder.AddServiceBusAdministrationClient(config[AzureServiceBusConnectionString]);
@@ -66,6 +67,11 @@ internal class Program
                         }
                     });
 
+                // AZURE SERVICE BUS - Endpoint
+                if (!string.IsNullOrWhiteSpace(config[AzureServiceBusFQNamespace]))
+                {
+                    services.AddSingleton(new ServiceBusAdministrationClient(config[AzureServiceBusFQNamespace], new DefaultAzureCredential()));
+                }
 
                 // SQL SERVER
                 if (!string.IsNullOrWhiteSpace(config[SqlServerConnectionString]))

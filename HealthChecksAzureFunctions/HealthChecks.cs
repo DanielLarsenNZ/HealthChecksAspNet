@@ -100,11 +100,11 @@ namespace HealthChecksAzureFunctions
 
                         if (queue.Value is null)
                         {
-                            return Unhealthy($"Queue \"{_config[AzureStorageContainerName]}\" not found.", startTime);
+                            return Unhealthy($"Queue \"{_config[AzureServiceBusQueueName]}\" not found.", startTime);
                         }
                         else
                         {
-                            return Healthy($"Queue \"{_config[AzureStorageContainerName]}\" exists.", startTime);
+                            return Healthy($"Queue \"{_config[AzureServiceBusQueueName]}\" exists.", startTime);
                         }
                     }
                 }));
@@ -124,7 +124,7 @@ namespace HealthChecksAzureFunctions
 
                 tasks.Add(HealthCheck<SqlConnection>(healthReportEntries, async (service, cancellationToken) =>
                 {
-                    service.Open();
+                    await service.OpenAsync(cancellationToken);
 
                     string sql = "SELECT @@VERSION";
 
@@ -138,6 +138,8 @@ namespace HealthChecksAzureFunctions
                                 break;
                             }
                         }
+
+                        await service.CloseAsync();
 
                         return Healthy("SELECT @@VERSION succeeded", startTime);
                     }

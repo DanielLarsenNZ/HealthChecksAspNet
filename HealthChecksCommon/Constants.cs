@@ -4,6 +4,7 @@
     {
         public const string RedisConnectionString = "REDIS_CONNECTION_STRING";
         
+        public const string AzureServiceBusFQNamespace = "AZURE_SERVICE_BUS_FQ_NAMESPACE";
         public const string AzureServiceBusConnectionString = "AZURE_SERVICE_BUS_CONNECTION_STRING";
         public const string AzureServiceBusQueueName = "AZURE_SERVICE_BUS_QUEUE_NAME";
         
