@@ -147,12 +147,13 @@ namespace HealthChecksCommon
 
 
                 var tokenSource = new CancellationTokenSource();
-                tokenSource.CancelAfter(DefaultTimeoutMilliseconds * 2);
+                //tokenSource.CancelAfter(DefaultTimeoutMilliseconds * 2);
                 var cancellationToken = tokenSource.Token;
 
-                bool allCompleted = Task.WaitAll(tasks.ToArray(), DefaultTimeoutMilliseconds, cancellationToken);
+                //bool allCompleted = Task.WaitAll(tasks.ToArray(), DefaultTimeoutMilliseconds, cancellationToken);
+                Task.WaitAll(tasks.ToArray(), cancellationToken);
 
-                if (!allCompleted) throw new TimeoutException($"Tasks did not completed within timeout of {DefaultTimeoutSeconds * 2} seconds.");
+                //if (!allCompleted) throw new TimeoutException($"Tasks did not completed within timeout of {DefaultTimeoutSeconds * 2} seconds.");
 
             }
             catch (Exception ex)
@@ -182,7 +183,7 @@ namespace HealthChecksCommon
             string key = typeof(T).Name;
             DateTimeOffset startTime = DateTimeOffset.Now;
             var tokenSource = new CancellationTokenSource();
-            tokenSource.CancelAfter(DefaultTimeoutMilliseconds);
+            //tokenSource.CancelAfter(DefaultTimeoutMilliseconds);
 
             try
             {
