@@ -1,6 +1,11 @@
+using Azure.Identity;
+using Azure.Messaging.ServiceBus.Administration;
 using HealthChecksAspNet;
 using HealthChecksCommon;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Azure;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using System.Net;
 using System.Text;
 using static HealthChecksCommon.Constants;
@@ -8,7 +13,64 @@ using static HealthChecksCommon.Constants;
 var builder = WebApplication.CreateBuilder(args);
 var config = builder.Configuration;
 
-builder.Services.AddHealthChecksDotNet(config);
+//builder.Services.AddHealthChecksDotNet(config);
+builder.Services.AddTransient<HealthChecksService>();
+
+builder.Services.AddAzureClients(builder =>
+{
+    builder.UseCredential(new DefaultAzureCredential());
+
+    // AZURE SERVICE BUS - Connection String
+    if (!string.IsNullOrWhiteSpace(config[AzureServiceBusConnectionString]))
+    {
+        builder.AddServiceBusAdministrationClient(config[AzureServiceBusConnectionString]);
+    }
+
+    // AZURE STORAGE
+    // Endpoint URI
+    if (!string.IsNullOrWhiteSpace(config[AzureStorageBlobEndpointUri]))
+    {
+        if (Uri.IsWellFormedUriString(config[AzureStorageBlobEndpointUri], UriKind.Absolute))
+        {
+            builder.AddBlobServiceClient(new Uri(config[AzureStorageBlobEndpointUri]));
+        }
+        else
+        {
+            //TODO: Log malformed URI
+        }
+    }
+    // Or Connection String
+    else if (!string.IsNullOrWhiteSpace(config[AzureStorageBlobConnectionString]))
+    {
+        builder.AddBlobServiceClient(config[AzureStorageBlobConnectionString]);
+    }
+
+    // AZURE KEY VAULT
+    if (!string.IsNullOrWhiteSpace(config[AzureKeyVaultUri]))
+    {
+        if (Uri.IsWellFormedUriString(config[AzureKeyVaultUri], UriKind.Absolute))
+        {
+            builder.AddSecretClient(new Uri(config[AzureKeyVaultUri]));
+        }
+        else
+        {
+            //TODO: Log malformed URI
+        }
+    }
+});
+
+// AZURE SERVICE BUS - Endpoint
+if (!string.IsNullOrWhiteSpace(config[AzureServiceBusFQNamespace]))
+{
+    builder.Services.AddSingleton(new ServiceBusAdministrationClient(config[AzureServiceBusFQNamespace], new DefaultAzureCredential()));
+}
+
+// SQL SERVER
+if (!string.IsNullOrWhiteSpace(config[SqlServerConnectionString]))
+{
+    builder.Services.AddSingleton(new SqlConnection(config[SqlServerConnectionString]));
+}
+
 
 var app = builder.Build();
 
@@ -16,20 +78,29 @@ var app = builder.Build();
 
 app.UseHttpsRedirection();
 
-app.MapHealthChecks("/health", new HealthCheckOptions
+//app.MapHealthChecks("/health", new HealthCheckOptions
+//{
+//    ResponseWriter = HealthChecksDotNetResponseWriter.WriteResponse
+//});
+
+//app.UseHealthChecks("/", new HealthCheckOptions
+//{
+//    Predicate = r => r.Name.Contains("self"),
+//    ResponseWriter = HealthChecksDotNetResponseWriter.WriteResponse
+//});
+
+app.MapGet("/health", async (HealthChecksService healthChecksService) => 
 {
-    ResponseWriter = HealthChecksDotNetResponseWriter.WriteResponse
+    var healthReport = await healthChecksService.RunHealthChecks();
+
+    return Results.Extensions.StatusCodeText(
+        HealthChecksService.HttpStatusFromHealthCheckStatus(healthReport), 
+        HealthChecksDotNetResponseWriter.WriteResponseString(healthReport));
 });
 
-app.UseHealthChecks("/", new HealthCheckOptions
+app.MapGet("/", () =>
 {
-    Predicate = r => r.Name.Contains("self"),
-    ResponseWriter = HealthChecksDotNetResponseWriter.WriteResponse
-});
-
-app.MapGet("/hello", () =>
-{
-    return "hello";
+    return "ok. GET /health for Health Checks";
 });
 
 app.MapGet("/503", () =>

@@ -1,5 +1,6 @@
 using Azure.Identity;
 using Azure.Messaging.ServiceBus.Administration;
+using HealthChecksCommon;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Azure;
 using Microsoft.Extensions.Configuration;
@@ -23,6 +24,8 @@ internal class Program
             .ConfigureServices((builder, services) =>
             {
                 var config = builder.Configuration;
+
+                services.AddTransient<HealthChecksService>();
 
                 services.AddAzureClients(builder =>
                     {

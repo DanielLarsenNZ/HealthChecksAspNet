@@ -1,47 +1,42 @@
-using Azure.Messaging.ServiceBus.Administration;
+﻿using Azure.Messaging.ServiceBus.Administration;
 using Azure.Security.KeyVault.Secrets;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
-using HealthChecksCommon;
-using Microsoft.Azure.Functions.Worker;
-using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using static HealthChecksCommon.Constants;
+using Microsoft.Extensions.DependencyInjection;
+using System.Net;
 
-namespace HealthChecksAzureFunctions
+namespace HealthChecksCommon
 {
-    public class HealthChecks
+    public class HealthChecksService
     {
         private readonly ILogger _logger;
         private readonly IConfiguration _config;
         private readonly IServiceProvider _services;
 
-        public HealthChecks(
+        public HealthChecksService(
             ILoggerFactory loggerFactory,
             IConfiguration config,
             IServiceProvider services)
         {
-            _logger = loggerFactory.CreateLogger<HealthChecks>();
+            _logger = loggerFactory.CreateLogger<HealthChecksService>();
             _config = config;
             _services = services;
         }
 
-        [Function(nameof(HealthChecks))]
-        public async Task<HttpResponseData> Run(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "health")] HttpRequestData req)
+        public async Task<HealthReport> RunHealthChecks()
         {
-            _logger.LogInformation("C# HTTP trigger function processed a request.");
             var status = HealthStatus.Healthy;
             var healthReportEntries = new ConcurrentDictionary<string, HealthReportEntry>();
             var startTime = DateTimeOffset.Now;
@@ -163,20 +158,14 @@ namespace HealthChecksAzureFunctions
             catch (Exception ex)
             {
                 status = HealthStatus.Unhealthy;
-                healthReportEntries.TryAdd(nameof(HealthChecks), new HealthReportEntry(HealthStatus.Unhealthy, ex.Message, Elapsed(startTime), ex, null));
+                healthReportEntries.TryAdd(nameof(HealthChecksService), new HealthReportEntry(HealthStatus.Unhealthy, ex.Message, Elapsed(startTime), ex, null));
             }
 
             // If any health report entries are unhealthy, set Health report status to unhealthy
             if (healthReportEntries.Any(entry => entry.Value.Status == HealthStatus.Unhealthy)) status = HealthStatus.Unhealthy;
 
-            var healthReport = new HealthReport(healthReportEntries, status, Elapsed(startTime));
+            return new HealthReport(healthReportEntries, status, Elapsed(startTime));
 
-            var response = req.CreateResponse(HttpStatusFromHealthCheckStatus(healthReport));
-            response.Headers.Add("Content-Type", "text/plain; charset=utf-8");
-
-            await response.WriteStringAsync(HealthChecksDotNetResponseWriter.WriteResponseString(healthReport));
-
-            return response;
         }
 
         private async Task HealthCheck<T>(ConcurrentDictionary<string, HealthReportEntry> healthReportEntries, Func<T, CancellationToken, Task<HealthReportEntry>> healthcheckLogic)
@@ -263,7 +252,7 @@ namespace HealthChecksAzureFunctions
             }
         }
 
-        private static HttpStatusCode HttpStatusFromHealthCheckStatus(HealthReport healthReport)
+        public static HttpStatusCode HttpStatusFromHealthCheckStatus(HealthReport healthReport)
         {
             if (healthReport.Status == HealthStatus.Healthy) return HttpStatusCode.OK;
             return HttpStatusCode.ServiceUnavailable;
