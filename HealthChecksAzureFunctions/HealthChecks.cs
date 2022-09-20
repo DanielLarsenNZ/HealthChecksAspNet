@@ -124,25 +124,30 @@ namespace HealthChecksAzureFunctions
 
                 tasks.Add(HealthCheck<SqlConnection>(healthReportEntries, async (service, cancellationToken) =>
                 {
-                    await service.OpenAsync(cancellationToken);
-
-                    string sql = "SELECT @@VERSION";
-
-                    using (SqlCommand command = new SqlCommand(sql, service))
+                    try
                     {
-                        using (SqlDataReader reader = await command.ExecuteReaderAsync())
+                        await service.OpenAsync(cancellationToken);
+
+                        string sql = "SELECT @@VERSION";
+
+                        using (SqlCommand command = new SqlCommand(sql, service))
                         {
-                            while (reader.Read())
+                            using (SqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken))
                             {
-                                _logger.LogTrace("{0} {1}", reader.GetString(0), reader.GetString(1));
-                                break;
+                                while (reader.Read())
+                                {
+                                    _logger.LogTrace(reader.GetString(0));
+                                    break;
+                                }
                             }
                         }
-
-                        await service.CloseAsync();
-
-                        return Healthy("SELECT @@VERSION succeeded", startTime);
                     }
+                    finally
+                    {
+                        await service.CloseAsync();
+                    }
+
+                    return Healthy("SELECT @@VERSION succeeded", startTime);
                 }));
 
 
