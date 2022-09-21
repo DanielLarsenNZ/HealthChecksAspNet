@@ -71,6 +71,7 @@ if (!string.IsNullOrWhiteSpace(config[SqlServerConnectionString]))
     builder.Services.AddSingleton(new SqlConnection(config[SqlServerConnectionString]));
 }
 
+builder.Services.AddApplicationInsightsTelemetry();
 
 var app = builder.Build();
 

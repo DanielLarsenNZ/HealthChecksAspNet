@@ -38,16 +38,18 @@ namespace HealthChecksCommon
         {
             var status = HealthStatus.Healthy;
             var healthReportEntries = new ConcurrentDictionary<string, HealthReportEntry>();
-            var startTime = DateTimeOffset.Now;
+            var allChecksStartTime = DateTimeOffset.Now;
 
             try
             {
-                var tasks = new List<Task>();
-                tasks.Add(HealthCheck<BlobServiceClient>(healthReportEntries, (service, cancellationToken) => HealthCheckBlobStorage(service, cancellationToken)));
+                //var tasks = new List<Task>();
+                await HealthCheck<BlobServiceClient>(healthReportEntries, (service, cancellationToken) => HealthCheckBlobStorage(service, cancellationToken));
 
-
-                tasks.Add(HealthCheck<ServiceBusAdministrationClient>(healthReportEntries, async (service, cancellationToken) =>
+                
+                await HealthCheck<ServiceBusAdministrationClient>(healthReportEntries, async (service, cancellationToken) =>
                 {
+                    var startTime = DateTimeOffset.Now;
+
                     if (string.IsNullOrEmpty(_config[AzureServiceBusQueueName]))
                     {
                         // No queue to check. Just get all queues
@@ -74,10 +76,12 @@ namespace HealthChecksCommon
                             return Healthy($"Queue \"{_config[AzureServiceBusQueueName]}\" exists.", startTime);
                         }
                     }
-                }));
+                });
 
-                tasks.Add(HealthCheck<SecretClient>(healthReportEntries, async (service, cancellationToken) =>
+                await HealthCheck<SecretClient>(healthReportEntries, async (service, cancellationToken) =>
                 {
+                    var startTime = DateTimeOffset.Now;
+
                     var properties = service.GetPropertiesOfSecretsAsync(cancellationToken);
 
                     await foreach (var property in properties)
@@ -87,10 +91,12 @@ namespace HealthChecksCommon
                     }
 
                     return Healthy("List secrets succeeded", startTime);
-                }));
+                });
 
-                tasks.Add(HealthCheck<SqlConnection>(healthReportEntries, async (service, cancellationToken) =>
+                await HealthCheck<SqlConnection>(healthReportEntries, async (service, cancellationToken) =>
                 {
+                    var startTime = DateTimeOffset.Now;
+
                     try
                     {
                         await service.OpenAsync(cancellationToken);
@@ -115,21 +121,23 @@ namespace HealthChecksCommon
                     }
 
                     return Healthy("SELECT @@VERSION succeeded", startTime);
-                }));
+                });
+                
 
-                await Task.WhenAll(tasks);
+                //await Task.WhenAll(tasks);
 
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex.Message, ex);
                 status = HealthStatus.Unhealthy;
-                healthReportEntries.TryAdd(nameof(HealthChecksService), new HealthReportEntry(HealthStatus.Unhealthy, ex.Message, Elapsed(startTime), ex, null));
+                healthReportEntries.TryAdd(nameof(HealthChecksService), new HealthReportEntry(HealthStatus.Unhealthy, ex.Message, Elapsed(allChecksStartTime), ex, null));
             }
 
             // If any health report entries are unhealthy, set Health report status to unhealthy
             if (healthReportEntries.Any(entry => entry.Value.Status == HealthStatus.Unhealthy)) status = HealthStatus.Unhealthy;
 
-            return new HealthReport(healthReportEntries, status, Elapsed(startTime));
+            return new HealthReport(healthReportEntries, status, Elapsed(allChecksStartTime));
 
         }
 

@@ -7,7 +7,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "HealthChecksAspNet", "Healt
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "HealthChecksAzureFunctions", "HealthChecksAzureFunctions\HealthChecksAzureFunctions.csproj", "{15D12DAC-30D5-4455-9265-819ADAFEB018}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HealthChecksCommon", "HealthChecksCommon\HealthChecksCommon.csproj", "{5C40C25E-3E9B-4182-828F-C9B6E4AAC07B}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "HealthChecksCommon", "HealthChecksCommon\HealthChecksCommon.csproj", "{5C40C25E-3E9B-4182-828F-C9B6E4AAC07B}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

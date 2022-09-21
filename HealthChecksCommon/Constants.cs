@@ -22,7 +22,7 @@
         public const string HttpsEndpointUrls = "HTTPS_ENDPOINT_URLS";
         public const string EchoAllowedHosts = "ECHO_ALLOWED_HOSTS";
 
-        public const int DefaultTimeoutSeconds = 60;
+        public const int DefaultTimeoutSeconds = 31;
         public const int DefaultTimeoutMilliseconds = DefaultTimeoutSeconds * 1000;
     }
 }

@@ -25,7 +25,6 @@ namespace HealthChecksAzureFunctions
     {
         private readonly ILogger _logger;
         private readonly HealthChecksService _healthChecksService;
-        private readonly IServiceProvider _services;
 
         public HealthChecksFunction(
             ILoggerFactory loggerFactory,
