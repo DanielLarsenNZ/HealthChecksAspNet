@@ -4,18 +4,17 @@ using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
+using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using static HealthChecksCommon.Constants;
-using Microsoft.Extensions.DependencyInjection;
-using System.Net;
 
 namespace HealthChecksCommon
 {
@@ -44,34 +43,7 @@ namespace HealthChecksCommon
             try
             {
                 var tasks = new List<Task>();
-                tasks.Add(HealthCheck<BlobServiceClient>(healthReportEntries, async (service, cancellationToken) =>
-                {
-                    // Call the listing operation and enumerate the result segment.
-                    var resultSegment = service.GetBlobContainersAsync(
-                        BlobContainerTraits.Metadata,
-                        prefix: _config[AzureStorageContainerName],
-                        cancellationToken: cancellationToken)
-                        .AsPages();
-
-                    await foreach (Azure.Page<BlobContainerItem> containerPage in resultSegment)
-                    {
-                        foreach (BlobContainerItem containerItem in containerPage.Values)
-                        {
-                            if (string.IsNullOrEmpty(_config[AzureStorageContainerName]))
-                            {
-                                return Healthy($"List containers succeeded. No container name specified by app setting \"{AzureStorageContainerName}\".", startTime);
-                            }
-
-                            if (containerItem.Name == _config[AzureStorageContainerName])
-                            {
-                                return Healthy($"List containers succeeded. Container \"{_config[AzureStorageContainerName]}\" exists.", startTime);
-                            }
-                        }
-                    }
-
-                    // Container not found
-                    return Unhealthy($"List containers succeeded, but container \"{_config[AzureStorageContainerName]}\" not found.", startTime);
-                }));
+                tasks.Add(HealthCheck<BlobServiceClient>(healthReportEntries, (service, cancellationToken) => HealthCheckBlobStorage(service, cancellationToken)));
 
 
                 tasks.Add(HealthCheck<ServiceBusAdministrationClient>(healthReportEntries, async (service, cancellationToken) =>
@@ -145,15 +117,7 @@ namespace HealthChecksCommon
                     return Healthy("SELECT @@VERSION succeeded", startTime);
                 }));
 
-
-                var tokenSource = new CancellationTokenSource();
-                //tokenSource.CancelAfter(DefaultTimeoutMilliseconds * 2);
-                var cancellationToken = tokenSource.Token;
-
-                //bool allCompleted = Task.WaitAll(tasks.ToArray(), DefaultTimeoutMilliseconds, cancellationToken);
-                Task.WaitAll(tasks.ToArray(), cancellationToken);
-
-                //if (!allCompleted) throw new TimeoutException($"Tasks did not completed within timeout of {DefaultTimeoutSeconds * 2} seconds.");
+                await Task.WhenAll(tasks);
 
             }
             catch (Exception ex)
@@ -167,6 +131,37 @@ namespace HealthChecksCommon
 
             return new HealthReport(healthReportEntries, status, Elapsed(startTime));
 
+        }
+
+        public async Task<HealthReportEntry> HealthCheckBlobStorage(BlobServiceClient service, CancellationToken cancellationToken)
+        {
+            var startTime = DateTimeOffset.Now;
+
+            // Call the listing operation and enumerate the result segment.
+            var resultSegment = service.GetBlobContainersAsync(
+                BlobContainerTraits.Metadata,
+                prefix: _config[AzureStorageContainerName],
+                cancellationToken: cancellationToken)
+                .AsPages();
+
+            await foreach (Azure.Page<BlobContainerItem> containerPage in resultSegment)
+            {
+                foreach (BlobContainerItem containerItem in containerPage.Values)
+                {
+                    if (string.IsNullOrEmpty(_config[AzureStorageContainerName]))
+                    {
+                        return Healthy($"List containers succeeded. No container name specified by app setting \"{AzureStorageContainerName}\".", startTime);
+                    }
+
+                    if (containerItem.Name == _config[AzureStorageContainerName])
+                    {
+                        return Healthy($"List containers succeeded. Container \"{_config[AzureStorageContainerName]}\" exists.", startTime);
+                    }
+                }
+            }
+
+            // Container not found
+            return Unhealthy($"List containers succeeded, but container \"{_config[AzureStorageContainerName]}\" not found.", startTime);
         }
 
         private async Task HealthCheck<T>(ConcurrentDictionary<string, HealthReportEntry> healthReportEntries, Func<T, CancellationToken, Task<HealthReportEntry>> healthcheckLogic)
@@ -183,7 +178,7 @@ namespace HealthChecksCommon
             string key = typeof(T).Name;
             DateTimeOffset startTime = DateTimeOffset.Now;
             var tokenSource = new CancellationTokenSource();
-            //tokenSource.CancelAfter(DefaultTimeoutMilliseconds);
+            tokenSource.CancelAfter(DefaultTimeoutMilliseconds);
 
             try
             {
