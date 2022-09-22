@@ -10,7 +10,7 @@ using System.Net;
 using System.Text;
 using AzureCacheRedisClient;
 using static HealthChecksCommon.Constants;
-
+using Microsoft.Azure.Cosmos;
 
 var builder = WebApplication.CreateBuilder(args);
 var config = builder.Configuration;
@@ -78,6 +78,19 @@ if (!string.IsNullOrWhiteSpace(config[RedisConnectionString]))
 {
     builder.Services.AddSingleton(new RedisDb(config[RedisConnectionString]));
 }
+
+// AZURE COSMOS DB
+//  Endpoint URL
+if (!string.IsNullOrWhiteSpace(config[AzureCosmosDbEndpointUri]))
+{
+    builder.Services.AddSingleton(new CosmosClient(config[AzureCosmosDbEndpointUri], new DefaultAzureCredential()));
+} 
+//  Or, Connection string
+else if (!string.IsNullOrWhiteSpace(config[AzureCosmosDbConnectionString]))
+{
+    builder.Services.AddSingleton(new CosmosClient(config[AzureCosmosDbConnectionString]));
+}
+
 
 builder.Services.AddApplicationInsightsTelemetry();
 

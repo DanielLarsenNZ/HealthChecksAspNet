@@ -23,7 +23,7 @@ namespace HealthChecksCommon
             using var memoryStream = new MemoryStream();
             using (var writer = new StreamWriter(memoryStream))
             {
-                writer.WriteLine($"{healthReport.Status.ToString().ToUpper()}\t{healthReport.TotalDuration.TotalSeconds.ToString("#.##")} seconds");
+                writer.WriteLine($"{healthReport.Status.ToString().ToUpper()}\t{healthReport.TotalDuration.TotalSeconds.ToString("#0.00####")} seconds");
 
                 if (context is not null) writer.WriteLine($"Request.Host:\t\t{context.Request.Host}");
                 if (context is not null) writer.WriteLine($"RemoteIpAddress:\t{context.Connection.RemoteIpAddress}");
@@ -45,7 +45,7 @@ namespace HealthChecksCommon
                     writer.WriteLine();
                     writer.Write(entry.Key + '\t');
                     writer.Write(entry.Value.Status.ToString().ToUpper() + '\t');
-                    writer.Write(entry.Value.Duration.TotalSeconds.ToString("#.##") + " seconds\n");
+                    writer.Write(entry.Value.Duration.TotalSeconds.ToString("#0.00####") + " seconds\n");
                     writer.Write(entry.Value.Description + '\n');
 
                     foreach (var item in entry.Value.Data)

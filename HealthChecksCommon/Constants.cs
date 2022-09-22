@@ -9,6 +9,7 @@
         public const string AzureServiceBusQueueName = "AZURE_SERVICE_BUS_QUEUE_NAME";
         
         public const string AzureCosmosDbEndpointUri = "AZURE_COSMOSDB_ENDPOINT_URI";
+        public const string AzureCosmosDbConnectionString = "AZURE_COSMOSDB_CONNECTION_STRING";
         public const string AzureCosmosDbDatabaseName = "AZURE_COSMOSDB_DATABASE_NAME";
         
         public const string AzureKeyVaultUri = "AZURE_KEYVAULT_URI";

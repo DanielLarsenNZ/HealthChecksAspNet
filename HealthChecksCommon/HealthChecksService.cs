@@ -3,11 +3,13 @@ using Azure.Security.KeyVault.Secrets;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using AzureCacheRedisClient;
+using Microsoft.Azure.Cosmos;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
+using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -46,7 +48,7 @@ namespace HealthChecksCommon
                 var tasks = new List<Task>();
                 tasks.Add(HealthCheck<BlobServiceClient>(healthReportEntries, (service, cancellationToken) => HealthCheckBlobStorage(service, cancellationToken)));
                 tasks.Add(HealthCheck<RedisDb>(healthReportEntries, (service, cancellationToken) => HealthCheckRedisCache(service, cancellationToken)));
-
+                tasks.Add(HealthCheck<CosmosClient>(healthReportEntries, (service, cancellationToken) => HealthCheckCosmosDb(service, cancellationToken)));
 
                 tasks.Add(HealthCheck<ServiceBusAdministrationClient>(healthReportEntries, async (service, cancellationToken) =>
                 {
@@ -157,6 +159,25 @@ namespace HealthChecksCommon
             return Healthy($"Cache set/get operations completed successfully.", startTime);
         }
 
+        public async Task<HealthReportEntry> HealthCheckCosmosDb(CosmosClient service, CancellationToken cancellationToken)
+        {
+            var startTime = DateTimeOffset.Now;
+
+            if (string.IsNullOrWhiteSpace(_config[AzureCosmosDbDatabaseName]))
+                return Unhealthy($"App setting {AzureCosmosDbDatabaseName} is not set.", startTime);
+            
+            try
+            {
+                var properties = await service.GetDatabase(_config[AzureCosmosDbDatabaseName])
+                    .ReadAsync(cancellationToken: cancellationToken);
+                return Healthy($"Database \"{_config[AzureCosmosDbDatabaseName]}\" properties read successfully.", startTime);
+            }
+            catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+            {
+                return Unhealthy($"Cosmos database \"{_config[AzureCosmosDbDatabaseName]}\" not found.", ex, startTime);
+            }
+        }
+
         public async Task<HealthReportEntry> HealthCheckBlobStorage(BlobServiceClient service, CancellationToken cancellationToken)
         {
             var startTime = DateTimeOffset.Now;
@@ -241,6 +262,14 @@ namespace HealthChecksCommon
             null,
             null);
 
+        private static HealthReportEntry Unhealthy(string description, Exception exception, DateTimeOffset startTime) =>
+        new HealthReportEntry(
+            HealthStatus.Unhealthy,
+            description,
+            Elapsed(startTime),
+            exception,
+            null);
+
         private static void AddHealthy(ConcurrentDictionary<string, HealthReportEntry> healthReportEntries, string key, string description, DateTimeOffset startTime)
         {
             if (!healthReportEntries.TryAdd(key, Healthy(description, startTime)))
@@ -261,12 +290,7 @@ namespace HealthChecksCommon
         {
             if (!healthReportEntries.TryAdd(
                 key,
-                new HealthReportEntry(
-                    HealthStatus.Unhealthy,
-                    exception.Message,
-                    Elapsed(startTime),
-                    exception,
-                    null)))
+                Unhealthy(exception.Message, exception, startTime)))
             {
                 throw new InvalidOperationException();
             }
