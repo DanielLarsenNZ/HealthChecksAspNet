@@ -2,6 +2,7 @@
 using Azure.Security.KeyVault.Secrets;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
+using AzureCacheRedisClient;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -42,11 +43,12 @@ namespace HealthChecksCommon
 
             try
             {
-                //var tasks = new List<Task>();
-                await HealthCheck<BlobServiceClient>(healthReportEntries, (service, cancellationToken) => HealthCheckBlobStorage(service, cancellationToken));
+                var tasks = new List<Task>();
+                tasks.Add(HealthCheck<BlobServiceClient>(healthReportEntries, (service, cancellationToken) => HealthCheckBlobStorage(service, cancellationToken)));
+                tasks.Add(HealthCheck<RedisDb>(healthReportEntries, (service, cancellationToken) => HealthCheckRedisCache(service, cancellationToken)));
 
-                
-                await HealthCheck<ServiceBusAdministrationClient>(healthReportEntries, async (service, cancellationToken) =>
+
+                tasks.Add(HealthCheck<ServiceBusAdministrationClient>(healthReportEntries, async (service, cancellationToken) =>
                 {
                     var startTime = DateTimeOffset.Now;
 
@@ -76,9 +78,9 @@ namespace HealthChecksCommon
                             return Healthy($"Queue \"{_config[AzureServiceBusQueueName]}\" exists.", startTime);
                         }
                     }
-                });
+                }));
 
-                await HealthCheck<SecretClient>(healthReportEntries, async (service, cancellationToken) =>
+                tasks.Add(HealthCheck<SecretClient>(healthReportEntries, async (service, cancellationToken) =>
                 {
                     var startTime = DateTimeOffset.Now;
 
@@ -91,9 +93,9 @@ namespace HealthChecksCommon
                     }
 
                     return Healthy("List secrets succeeded", startTime);
-                });
+                }));
 
-                await HealthCheck<SqlConnection>(healthReportEntries, async (service, cancellationToken) =>
+                tasks.Add(HealthCheck<SqlConnection>(healthReportEntries, async (service, cancellationToken) =>
                 {
                     var startTime = DateTimeOffset.Now;
 
@@ -121,10 +123,10 @@ namespace HealthChecksCommon
                     }
 
                     return Healthy("SELECT @@VERSION succeeded", startTime);
-                });
+                }));
                 
 
-                //await Task.WhenAll(tasks);
+                await Task.WhenAll(tasks);
 
             }
             catch (Exception ex)
@@ -139,6 +141,20 @@ namespace HealthChecksCommon
 
             return new HealthReport(healthReportEntries, status, Elapsed(allChecksStartTime));
 
+        }
+
+        public async Task<HealthReportEntry> HealthCheckRedisCache(RedisDb service, CancellationToken cancellationToken)
+        {
+            var startTime = DateTimeOffset.Now;
+
+            string key = Guid.NewGuid().ToString();
+
+            await service.Set(key, key, TimeSpan.FromSeconds(DefaultTimeoutSeconds));
+            string? value = await service.Get<string>(key);
+
+            if (value != key) return Unhealthy($"Cache Get: expected {key}, actual {value}.", startTime);
+
+            return Healthy($"Cache set/get operations completed successfully.", startTime);
         }
 
         public async Task<HealthReportEntry> HealthCheckBlobStorage(BlobServiceClient service, CancellationToken cancellationToken)

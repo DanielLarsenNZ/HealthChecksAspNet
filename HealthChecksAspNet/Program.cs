@@ -8,7 +8,9 @@ using Microsoft.Extensions.Azure;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using System.Net;
 using System.Text;
+using AzureCacheRedisClient;
 using static HealthChecksCommon.Constants;
+
 
 var builder = WebApplication.CreateBuilder(args);
 var config = builder.Configuration;
@@ -69,6 +71,12 @@ if (!string.IsNullOrWhiteSpace(config[AzureServiceBusFQNamespace]))
 if (!string.IsNullOrWhiteSpace(config[SqlServerConnectionString]))
 {
     builder.Services.AddSingleton(new SqlConnection(config[SqlServerConnectionString]));
+}
+
+// REDIS CACHE
+if (!string.IsNullOrWhiteSpace(config[RedisConnectionString]))
+{
+    builder.Services.AddSingleton(new RedisDb(config[RedisConnectionString]));
 }
 
 builder.Services.AddApplicationInsightsTelemetry();
