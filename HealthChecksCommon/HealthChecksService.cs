@@ -15,9 +15,12 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using System.Net.Http;
+using System.Security.Policy;
 using System.Threading;
 using System.Threading.Tasks;
 using static HealthChecksCommon.Constants;
+using static System.Net.WebRequestMethods;
 
 namespace HealthChecksCommon
 {
@@ -126,7 +129,17 @@ namespace HealthChecksCommon
 
                     return Healthy("SELECT @@VERSION succeeded", startTime);
                 }));
-                
+
+                // HTTPS ENDPOINTS
+                if (!string.IsNullOrEmpty(_config[HttpsEndpointUrls]))
+                {
+                    string urls = _config[HttpsEndpointUrls];
+                    foreach (string url in urls.Split(';'))
+                    {
+                        tasks.Add(HealthCheckHttpsUrl(healthReportEntries, url));
+                    }
+                }
+
 
                 await Task.WhenAll(tasks);
 
@@ -144,6 +157,41 @@ namespace HealthChecksCommon
             return new HealthReport(healthReportEntries, status, Elapsed(allChecksStartTime));
 
         }
+
+        public async Task HealthCheckHttpsUrl(ConcurrentDictionary<string, HealthReportEntry> healthReportEntries, string url)
+        {
+            if (!Uri.IsWellFormedUriString(url, UriKind.Absolute))
+            {
+                AddUnhealthy(healthReportEntries, url, $"{url} is not a well-formed absolute URI string. Check app setting {HttpsEndpointUrls} and try again.");
+                return;
+            }
+
+            await HealthCheckUri(healthReportEntries, new Uri(url), async (http, cancellationToken, uri) =>
+            {
+                var startTime = DateTimeOffset.Now;
+                
+                var data = new Dictionary<string, object>(
+                    new KeyValuePair<string, object>[]
+                    {
+                        new KeyValuePair<string, object>("IP", GetHostIps(uri))
+                    });
+
+                try
+                {
+                    var result = await http.GetAsync(uri, cancellationToken);
+                    result.EnsureSuccessStatusCode();
+                    return Healthy($"GET request to {uri} succeeded with HTTP status {result.StatusCode}.", startTime, data);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex.Message, ex);
+                    return Unhealthy(ex.Message, ex, startTime, data);
+                }
+            });
+        }
+
+    
+
 
         public async Task<HealthReportEntry> HealthCheckRedisCache(RedisDb service, CancellationToken cancellationToken)
         {
@@ -209,6 +257,41 @@ namespace HealthChecksCommon
             return Unhealthy($"List containers succeeded, but container \"{_config[AzureStorageContainerName]}\" not found.", startTime);
         }
 
+        private async Task HealthCheckUri(ConcurrentDictionary<string, HealthReportEntry> healthReportEntries, Uri uri, Func<HttpClient, CancellationToken, Uri, Task<HealthReportEntry>> healthcheckLogic)
+        {
+            var service = _services.GetService<HttpClient>();
+
+            // Don't run the health check if the service has not been configured.
+            if (service == null)
+            {
+                _logger.LogWarning("HttpClient not found in Service Provider.");
+                return;
+            }
+
+            DateTimeOffset startTime = DateTimeOffset.Now;
+            var tokenSource = new CancellationTokenSource();
+            tokenSource.CancelAfter(DefaultTimeoutMilliseconds);
+            string key = uri.ToString();
+
+            try
+            {
+                var healthReportEntry = await healthcheckLogic(service, tokenSource.Token, uri);
+                if (!healthReportEntries.TryAdd(key, healthReportEntry))
+                    throw new InvalidOperationException();
+            }
+            catch (TaskCanceledException ex)
+            {
+                var timeoutException = new TimeoutException($"Task was cancelled after timeout of {DefaultTimeoutSeconds} seconds.", ex);
+                AddUnhealthy(healthReportEntries, key, timeoutException, startTime);
+                _logger.LogError(timeoutException, timeoutException.Message);
+            }
+            catch (Exception ex)
+            {
+                AddUnhealthy(healthReportEntries, key, ex, startTime);
+                _logger.LogError(ex, ex.Message);
+            }
+
+        }
         private async Task HealthCheck<T>(ConcurrentDictionary<string, HealthReportEntry> healthReportEntries, Func<T, CancellationToken, Task<HealthReportEntry>> healthcheckLogic)
         {
             var service = _services.GetService<T>();
@@ -244,31 +327,45 @@ namespace HealthChecksCommon
             }
         }
 
+        private string GetHostIps(Uri uri)
+        {
+            try
+            {
+                var ips = Dns.GetHostAddresses(uri.Host);
+                return $"{string.Join(',', ips.Select(ip => ip.ToString()).ToArray())}";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.Message, ex);
+                return ex.Message;
+            }
+        }
+
         private static TimeSpan Elapsed(DateTimeOffset startTime) => DateTimeOffset.Now.Subtract(startTime);
 
-        private static HealthReportEntry Healthy(string description, DateTimeOffset startTime) =>
+        private static HealthReportEntry Healthy(string description, DateTimeOffset startTime, IReadOnlyDictionary<string, object>? data = null) =>
                 new HealthReportEntry(
                     HealthStatus.Healthy,
                     description,
                     Elapsed(startTime),
                     null,
-                    null);
+                    data);
 
-        private static HealthReportEntry Unhealthy(string description, DateTimeOffset startTime) =>
+        private static HealthReportEntry Unhealthy(string description, DateTimeOffset? startTime = null) =>
         new HealthReportEntry(
             HealthStatus.Unhealthy,
             description,
-            Elapsed(startTime),
+            startTime is null ? TimeSpan.Zero : Elapsed(startTime.Value),
             null,
             null);
 
-        private static HealthReportEntry Unhealthy(string description, Exception exception, DateTimeOffset startTime) =>
+        private static HealthReportEntry Unhealthy(string description, Exception exception, DateTimeOffset startTime, IReadOnlyDictionary<string, object>? data = null) =>
         new HealthReportEntry(
             HealthStatus.Unhealthy,
             description,
             Elapsed(startTime),
             exception,
-            null);
+            data);
 
         private static void AddHealthy(ConcurrentDictionary<string, HealthReportEntry> healthReportEntries, string key, string description, DateTimeOffset startTime)
         {
@@ -278,7 +375,7 @@ namespace HealthChecksCommon
             }
         }
 
-        private static void AddUnhealthy(ConcurrentDictionary<string, HealthReportEntry> healthReportEntries, string key, string description, DateTimeOffset startTime)
+        private static void AddUnhealthy(ConcurrentDictionary<string, HealthReportEntry> healthReportEntries, string key, string description, DateTimeOffset? startTime = null)
         {
             if (!healthReportEntries.TryAdd(key, Unhealthy(description, startTime)))
             {

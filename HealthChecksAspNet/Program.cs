@@ -91,6 +91,7 @@ else if (!string.IsNullOrWhiteSpace(config[AzureCosmosDbConnectionString]))
     builder.Services.AddSingleton(new CosmosClient(config[AzureCosmosDbConnectionString]));
 }
 
+builder.Services.AddHttpClient<HealthCheckService>();
 
 builder.Services.AddApplicationInsightsTelemetry();
 
