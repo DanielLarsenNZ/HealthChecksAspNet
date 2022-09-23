@@ -67,7 +67,7 @@ namespace HealthChecksCommon
                             _logger.LogTrace($"First queue found {queue.Name}");
                             break;
                         }
-
+                        
                         return Healthy($"Get Queues succeeded. No queue name specified by app setting \"{AzureServiceBusQueueName}\".", startTime);
                     }
                     else
@@ -89,15 +89,23 @@ namespace HealthChecksCommon
                 {
                     var startTime = DateTimeOffset.Now;
 
-                    var properties = service.GetPropertiesOfSecretsAsync(cancellationToken);
-
-                    await foreach (var property in properties)
+                    try
                     {
-                        _logger.LogTrace($"First property found {property.Name}");
-                        break;
-                    }
+                        var properties = service.GetPropertiesOfSecretsAsync(cancellationToken);
 
-                    return Healthy("List secrets succeeded", startTime);
+                        await foreach (var property in properties)
+                        {
+                            _logger.LogTrace($"First property found {property.Name}");
+                            break;
+                        }
+
+                        return Healthy("List secrets succeeded", startTime, GetHostIpData(service.VaultUri));
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex.Message, ex);
+                        return Unhealthy(ex.Message, ex, startTime, GetHostIpData(service.VaultUri));
+                    }
                 }));
 
                 tasks.Add(HealthCheck<SqlConnection>(healthReportEntries, async (service, cancellationToken) =>
@@ -170,22 +178,16 @@ namespace HealthChecksCommon
             {
                 var startTime = DateTimeOffset.Now;
                 
-                var data = new Dictionary<string, object>(
-                    new KeyValuePair<string, object>[]
-                    {
-                        new KeyValuePair<string, object>("IP", GetHostIps(uri))
-                    });
-
                 try
                 {
                     var result = await http.GetAsync(uri, cancellationToken);
                     result.EnsureSuccessStatusCode();
-                    return Healthy($"GET request to {uri} succeeded with HTTP status {result.StatusCode}.", startTime, data);
+                    return Healthy($"GET request to {uri} succeeded with HTTP status {result.StatusCode}.", startTime, GetHostIpData(uri));
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex.Message, ex);
-                    return Unhealthy(ex.Message, ex, startTime, data);
+                    return Unhealthy(ex.Message, ex, startTime, GetHostIpData(uri));
                 }
             });
         }
@@ -218,11 +220,11 @@ namespace HealthChecksCommon
             {
                 var properties = await service.GetDatabase(_config[AzureCosmosDbDatabaseName])
                     .ReadAsync(cancellationToken: cancellationToken);
-                return Healthy($"Database \"{_config[AzureCosmosDbDatabaseName]}\" properties read successfully.", startTime);
+                return Healthy($"Database \"{_config[AzureCosmosDbDatabaseName]}\" properties read successfully.", startTime, GetHostIpData(service.Endpoint));
             }
             catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
             {
-                return Unhealthy($"Cosmos database \"{_config[AzureCosmosDbDatabaseName]}\" not found.", ex, startTime);
+                return Unhealthy($"Cosmos database \"{_config[AzureCosmosDbDatabaseName]}\" not found.", ex, startTime, GetHostIpData(service.Endpoint));
             }
         }
 
@@ -230,31 +232,39 @@ namespace HealthChecksCommon
         {
             var startTime = DateTimeOffset.Now;
 
-            // Call the listing operation and enumerate the result segment.
-            var resultSegment = service.GetBlobContainersAsync(
-                BlobContainerTraits.Metadata,
-                prefix: _config[AzureStorageContainerName],
-                cancellationToken: cancellationToken)
-                .AsPages();
-
-            await foreach (Azure.Page<BlobContainerItem> containerPage in resultSegment)
+            try
             {
-                foreach (BlobContainerItem containerItem in containerPage.Values)
-                {
-                    if (string.IsNullOrEmpty(_config[AzureStorageContainerName]))
-                    {
-                        return Healthy($"List containers succeeded. No container name specified by app setting \"{AzureStorageContainerName}\".", startTime);
-                    }
+                // Call the listing operation and enumerate the result segment.
+                var resultSegment = service.GetBlobContainersAsync(
+                    BlobContainerTraits.Metadata,
+                    prefix: _config[AzureStorageContainerName],
+                    cancellationToken: cancellationToken)
+                    .AsPages();
 
-                    if (containerItem.Name == _config[AzureStorageContainerName])
+                await foreach (Azure.Page<BlobContainerItem> containerPage in resultSegment)
+                {
+                    foreach (BlobContainerItem containerItem in containerPage.Values)
                     {
-                        return Healthy($"List containers succeeded. Container \"{_config[AzureStorageContainerName]}\" exists.", startTime);
+                        if (string.IsNullOrEmpty(_config[AzureStorageContainerName]))
+                        {
+                            return Healthy($"List containers succeeded. No container name specified by app setting \"{AzureStorageContainerName}\".", startTime, GetHostIpData(service.Uri));
+                        }
+
+                        if (containerItem.Name == _config[AzureStorageContainerName])
+                        {
+                            return Healthy($"List containers succeeded. Container \"{_config[AzureStorageContainerName]}\" exists.", startTime, GetHostIpData(service.Uri));
+                        }
                     }
                 }
-            }
 
-            // Container not found
-            return Unhealthy($"List containers succeeded, but container \"{_config[AzureStorageContainerName]}\" not found.", startTime);
+                // Container not found
+                return Unhealthy($"List containers succeeded, but container \"{_config[AzureStorageContainerName]}\" not found.", startTime, GetHostIpData(service.Uri));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.Message, ex);
+                return Unhealthy(ex.Message, ex, startTime, GetHostIpData(service.Uri));
+            }
         }
 
         private async Task HealthCheckUri(ConcurrentDictionary<string, HealthReportEntry> healthReportEntries, Uri uri, Func<HttpClient, CancellationToken, Uri, Task<HealthReportEntry>> healthcheckLogic)
@@ -327,6 +337,14 @@ namespace HealthChecksCommon
             }
         }
 
+
+        private IReadOnlyDictionary<string, object> GetHostIpData(Uri uri) 
+            => new Dictionary<string, object>(
+                new KeyValuePair<string, object>[]
+                {
+                    new KeyValuePair<string, object>("IP", GetHostIps(uri))
+                });
+
         private string GetHostIps(Uri uri)
         {
             try
@@ -351,13 +369,13 @@ namespace HealthChecksCommon
                     null,
                     data);
 
-        private static HealthReportEntry Unhealthy(string description, DateTimeOffset? startTime = null) =>
+        private static HealthReportEntry Unhealthy(string description, DateTimeOffset? startTime = null, IReadOnlyDictionary<string, object>? data = null) =>
         new HealthReportEntry(
             HealthStatus.Unhealthy,
             description,
             startTime is null ? TimeSpan.Zero : Elapsed(startTime.Value),
             null,
-            null);
+            data);
 
         private static HealthReportEntry Unhealthy(string description, Exception exception, DateTimeOffset startTime, IReadOnlyDictionary<string, object>? data = null) =>
         new HealthReportEntry(

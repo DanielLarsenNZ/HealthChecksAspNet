@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using System;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -40,7 +41,7 @@ namespace HealthChecksCommon
                 writer.WriteLine($"WEBSITE_PRIVATE_IP:\t{Environment.GetEnvironmentVariables()["WEBSITE_PRIVATE_IP"]}");
                 writer.WriteLine($"GITHUB_SHA:\t\t{Environment.GetEnvironmentVariables()["GITHUB_SHA"]}");
 
-                foreach (var entry in healthReport.Entries)
+                foreach (var entry in healthReport.Entries.OrderBy(entry => entry.Key).OrderByDescending(entry => entry.Value.Status == HealthStatus.Healthy))
                 {
                     writer.WriteLine();
                     writer.Write(entry.Key + '\t');
