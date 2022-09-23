@@ -16,12 +16,12 @@ internal class Program
     static async Task Main(string[] args)
     {
         var host = new HostBuilder()
-            .ConfigureFunctionsWorkerDefaults()
             .ConfigureAppConfiguration(configurationBuilder =>
             {
                 configurationBuilder.AddEnvironmentVariables();
                 //configurationBuilder.AddJsonFile("local.settings.json", true);
             })
+            .ConfigureFunctionsWorkerDefaults()
             .ConfigureServices((builder, services) =>
             {
                 var config = builder.Configuration;
