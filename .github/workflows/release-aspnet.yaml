@@ -1,0 +1,39 @@
+name: "Release ASP.NET"
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - "HealthChecksAspNet/**"
+      - "HealthChecksCommon/**"
+      - "HealthChecksAspNet.Dockerfile"
+
+  workflow_dispatch:
+  
+jobs:
+  deploy:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions/setup-dotnet@v1
+        with:
+          dotnet-version: 6.0.x
+    
+      - name: publish and zip
+        run: |
+          dotnet publish ./HealthChecksAspNet/ -c Release -o './_zip'
+          Compress-Archive -Path ./_zip/* -DestinationPath ./deploy.zip -Force
+          
+      - uses: actions/create-release@v1
+        id: create_release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: ${{ github.ref }}
+      
+      - uses: csexton/release-asset-action@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          file: ./deploy.zip
+          release-url: ${{ steps.create_release.outputs.upload_url }}
