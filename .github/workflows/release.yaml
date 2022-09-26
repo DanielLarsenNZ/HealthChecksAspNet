@@ -1,0 +1,49 @@
+name: "Release ASP.NET"
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - "HealthChecksAspNet/**"
+      - "HealthChecksCommon/**"
+      - "HealthChecksAspNet.Dockerfile"
+      - "HealthChecksAzureFunctions/**"
+      - "HealthChecksAzureFunctions.Dockerfile"
+
+  workflow_dispatch:
+  
+jobs:
+  deploy:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions/setup-dotnet@v1
+        with:
+          dotnet-version: 6.0.x
+    
+      - name: publish and zip
+        run: |
+          dotnet publish ./HealthChecksAspNet/ -c Release -o './_webapp_zip'
+          Compress-Archive -Path ./_webapp_zip/* -DestinationPath ./webapp_deploy.zip -Force
+          dotnet publish ./HealthChecksAzureFunctions/ -c Release -o './_functionapp_zip'
+          Compress-Archive -Path ./_functionapp_zip/* -DestinationPath ./functionapp_deploy.zip -Force
+          
+      - uses: actions/create-release@v1
+        id: create_release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          release_name: v1.0.${{ github.run_number }}
+      
+      - uses: csexton/release-asset-action@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          file: ./webapp_deploy.zip
+          release-url: ${{ steps.create_release.outputs.upload_url }}
+
+      - uses: csexton/release-asset-action@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          file: ./functionapp_deploy.zip
+          release-url: ${{ steps.create_release.outputs.upload_url }}
