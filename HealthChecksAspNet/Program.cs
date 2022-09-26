@@ -11,6 +11,7 @@ using System.Text;
 using AzureCacheRedisClient;
 using static HealthChecksCommon.Constants;
 using Microsoft.Azure.Cosmos;
+using Azure;
 
 var builder = WebApplication.CreateBuilder(args);
 var config = builder.Configuration;
@@ -59,6 +60,20 @@ builder.Services.AddAzureClients(builder =>
             //TODO: Log malformed URI
         }
     }
+
+    // AZURE SEARCH
+    if (!string.IsNullOrWhiteSpace(config[AzureSearchEndpointUri]) && !string.IsNullOrWhiteSpace(config[AzureSearchApiKey]))
+    {
+        if (Uri.IsWellFormedUriString(config[AzureSearchEndpointUri], UriKind.Absolute))
+        {
+            builder.AddSearchIndexClient(new Uri(config[AzureSearchEndpointUri]), new AzureKeyCredential(config[AzureSearchApiKey]));
+        }
+        else
+        {
+            //TODO: Log malformed URI
+        }
+    }
+
 });
 
 // AZURE SERVICE BUS - Endpoint

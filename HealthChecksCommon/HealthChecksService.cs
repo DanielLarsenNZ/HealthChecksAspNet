@@ -1,4 +1,6 @@
-﻿using Azure.Messaging.ServiceBus.Administration;
+﻿using Azure;
+using Azure.Messaging.ServiceBus.Administration;
+using Azure.Search.Documents.Indexes;
 using Azure.Security.KeyVault.Secrets;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
@@ -52,6 +54,7 @@ namespace HealthChecksCommon
                 tasks.Add(HealthCheck<BlobServiceClient>(healthReportEntries, (service, cancellationToken) => HealthCheckBlobStorage(service, cancellationToken)));
                 tasks.Add(HealthCheck<RedisDb>(healthReportEntries, (service, cancellationToken) => HealthCheckRedisCache(service, cancellationToken)));
                 tasks.Add(HealthCheck<CosmosClient>(healthReportEntries, (service, cancellationToken) => HealthCheckCosmosDb(service, cancellationToken)));
+                tasks.Add(HealthCheck<SearchIndexClient>(healthReportEntries, (service, cancellationToken) => HealthCheckAzureSearch(service, cancellationToken)));
 
                 tasks.Add(HealthCheck<ServiceBusAdministrationClient>(healthReportEntries, async (service, cancellationToken) =>
                 {
@@ -192,8 +195,29 @@ namespace HealthChecksCommon
             });
         }
 
-    
+        public async Task<HealthReportEntry> HealthCheckAzureSearch(SearchIndexClient service, CancellationToken cancellationToken)
+        {
+            var startTime = DateTimeOffset.Now;
 
+            try
+            {
+                var pageable = service.GetIndexNamesAsync(cancellationToken);
+
+                await foreach (var name in pageable)
+                {
+                    _logger.LogTrace($"GetIndexNamesAsync name = {name}");
+                    break;
+                }
+
+                return Healthy("Get Index Names completed successfully.", startTime, GetHostIpData(service.Endpoint));
+            }
+            catch (RequestFailedException ex)
+            {
+                // logger doesn't like JSON in exception message?
+                _logger.LogError(ex.Message.Replace('{', ' ').Replace('}', ' '), ex);
+                return Unhealthy(ex.Message, ex, startTime, GetHostIpData(service.Endpoint));
+            }
+        }
 
         public async Task<HealthReportEntry> HealthCheckRedisCache(RedisDb service, CancellationToken cancellationToken)
         {

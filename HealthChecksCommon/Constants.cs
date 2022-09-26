@@ -20,6 +20,9 @@
         
         public const string SqlServerConnectionString = "SQL_SERVER_CONNECTION_STRING";
 
+        public const string AzureSearchEndpointUri = "AZURE_SEARCH_ENDPOINT_URI";
+        public const string AzureSearchApiKey = "AZURE_SEARCH_API_KEY";
+
         public const string HttpsEndpointUrls = "HTTPS_ENDPOINT_URLS";
         public const string EchoAllowedHosts = "ECHO_ALLOWED_HOSTS";
 
